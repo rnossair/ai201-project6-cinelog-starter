@@ -38,4 +38,46 @@ Used Claude Code for a few specific debugging tasks during this project:
 
 
 ## PR Description
-<!-- Written at the end — feature overview, design decisions, manual testing steps -->
+
+**What this does**
+Adds a watchlist feature to CineLog: users can save films they intend to watch, separate from their collection of already-watched films. Two endpoints are added — listing a user's watchlist and adding a film to it — following the same service/route conventions as the existing collection feature (naming, error handling, UUID IDs).
+
+**Endpoints**
+- `GET /watchlist/<user_id>` — returns the user's watchlist, sorted alphabetically by title.
+- `POST /watchlist/<user_id>/add` — adds a film to the watchlist. Body: `{ "film_id": "<uuid>" }`. Returns `404` if the film doesn't exist, `409` if it's already on the watchlist, `201` with the new entry on success.
+
+**Design decisions**
+- `public` defaults to `True` (see Comment 4) — a watchlist's value comes from being discoverable by other users; it's a per-entry field a user can flip at any time.
+- Sort order is alphabetical-by-title, not date-added (see Comment 5) — a watchlist functions as a reference list ("did I already add this?"), unlike the collection, which is a timeline of watched films.
+- `film_id` is a UUID string (`db.String(36)`), matching the schema-wide migration off integer IDs (see Comment 6).
+
+**Manual testing**
+```bash
+# Add a film to the watchlist
+curl -X POST http://localhost:5000/watchlist/<user_id>/add \
+  -H "Content-Type: application/json" \
+  -d '{"film_id": "<film_uuid>"}'
+# → 201, returns the new entry
+
+# Adding the same film again
+curl -X POST http://localhost:5000/watchlist/<user_id>/add \
+  -H "Content-Type: application/json" \
+  -d '{"film_id": "<film_uuid>"}'
+# → 409 AlreadyInWatchlistError
+
+# Adding a nonexistent film
+curl -X POST http://localhost:5000/watchlist/<user_id>/add \
+  -H "Content-Type: application/json" \
+  -d '{"film_id": "00000000-0000-0000-0000-000000000000"}'
+# → 404 FilmNotFoundError
+
+# View the watchlist
+curl http://localhost:5000/watchlist/<user_id>
+# → 200, films sorted alphabetically by title
+```
+Also ran the automated suite: `pytest tests/ -v` — 5 passed.
+
+**Commit history**
+Rebased cleanly onto `main` with a linear, conflict-free history (see Comment 6):
+
+![git log](<Capture d'écran 2026-07-12 142240.png>)
